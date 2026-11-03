@@ -7,6 +7,8 @@ signal canvas_input(event: InputEvent)
 @export var camera: CanvasCamera
 
 var _project: Project
+var _surface: LayerSurface
+var _surface_original: Image
 
 @onready var control_node: Control = $Control
 @onready var layers_node: Node2D = $Control/Layers
@@ -117,6 +119,38 @@ func bake_page() -> void:
 		node.queue_free()
 
 	_project.get_current_page()
+
+
+## Starts drawing directly on the current layer through a [LayerSurface]. [br]
+## The current layer's sprite shows the surface live until [method end_surface].
+## Returns [code]null[/code] when GPU blitting is unavailable.
+func begin_surface() -> LayerSurface:
+	if not _project or not LayerSurface.is_supported():
+		return null
+	if _surface:
+		return _surface
+
+	var current_layer = _project.current_layer
+	_surface_original = _project.get_current_page().layers[current_layer].duplicate()
+	_surface = LayerSurface.new(_surface_original)
+
+	if current_layer < layers_node.get_child_count():
+		var sprite: Sprite2D = layers_node.get_child(current_layer)
+		sprite.texture = _surface.texture
+		sprite.material = LayerSurface.display_material()
+	return _surface
+
+
+## Commits the active [LayerSurface] to the current layer as one undo step.
+func end_surface() -> void:
+	if not _surface:
+		return
+	var image = _surface.to_image()
+	var original = _surface_original
+	_surface = null
+	_surface_original = null
+	_project.edit_current_layer(_project.current_layer, image, original)
+	render_page(_project.get_current_page())
 
 
 func _on_gui_input(event: InputEvent) -> void:
