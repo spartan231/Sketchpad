@@ -42,10 +42,38 @@ func _init() -> void:
 			surface_ms += (Time.get_ticks_usec() - t0) / 1000.0
 
 		print(
-			"%dx%d, %d stamps: bake %.1f ms, LayerSurface %.1f ms (avg of %d)"
+			"Brush  %dx%d, %d stamps: bake %.1f ms, LayerSurface %.1f ms (avg of %d)"
 			% [size.x, size.y, STAMPS, bake_ms / RUNS, surface_ms / RUNS, RUNS]
 		)
+		_bench_eraser(canvas, stamp, size)
 	quit()
+
+
+func _bench_eraser(canvas: Canvas, stamp: Texture2D, size: Vector2i) -> void:
+	var eraser := Eraser.new()
+	eraser.original_stamp = stamp
+	eraser.width = 8
+	eraser.filter = eraser.generate_filter()
+	var cpu_ms := 0.0
+	var surface_ms := 0.0
+	for run in RUNS:
+		for use_surface in [false, true]:
+			canvas.use_surface = use_surface
+			var t0 := Time.get_ticks_usec()
+			eraser.on_pointer_down(_pos(0, size), canvas)
+			for i in range(1, STAMPS):
+				eraser._place_stamp(_pos(i, size), canvas)
+			eraser.on_pointer_up(_pos(STAMPS - 1, size), canvas)
+			var ms := (Time.get_ticks_usec() - t0) / 1000.0
+			if use_surface:
+				surface_ms += ms
+			else:
+				cpu_ms += ms
+	canvas.use_surface = true
+	print(
+		"Eraser %dx%d, %d stamps: CPU %.1f ms, LayerSurface %.1f ms (avg of %d)"
+		% [size.x, size.y, STAMPS, cpu_ms / RUNS, surface_ms / RUNS, RUNS]
+	)
 
 
 func _pos(i: int, size: Vector2i) -> Vector2:

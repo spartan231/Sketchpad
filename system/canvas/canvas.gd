@@ -5,6 +5,9 @@ signal canvas_input(event: InputEvent)
 
 @export var camera_movable: bool = false
 @export var camera: CanvasCamera
+## Draw with [LayerSurface] (experimental DrawableTexture2D) when possible.
+## Turn off to force the CPU / SubViewport paths.
+@export var use_surface: bool = true
 
 var _project: Project
 var _surface: LayerSurface
@@ -125,7 +128,7 @@ func bake_page() -> void:
 ## The current layer's sprite shows the surface live until [method end_surface].
 ## Returns [code]null[/code] when GPU blitting is unavailable.
 func begin_surface() -> LayerSurface:
-	if not _project or not LayerSurface.is_supported():
+	if not use_surface or not _project or not LayerSurface.is_supported():
 		return null
 	if _surface:
 		return _surface

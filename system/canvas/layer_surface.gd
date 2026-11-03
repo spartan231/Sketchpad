@@ -11,12 +11,14 @@ const PREMULTIPLY_SHADER: Shader = preload("res://system/canvas/shaders/blit_pre
 const UNPREMULTIPLY_SHADER: Shader = preload(
 	"res://system/canvas/shaders/blit_unpremultiply.gdshader"
 )
+const ERASE_SHADER: Shader = preload("res://system/canvas/shaders/blit_erase.gdshader")
 
 ## Half-float storage avoids banding from premultiplying low-alpha colors.
 const WORK_FORMAT := DrawableTexture2D.DRAWABLE_FORMAT_RGBAH
 
 static var _premultiply: ShaderMaterial
 static var _unpremultiply: ShaderMaterial
+static var _erase: ShaderMaterial
 
 var texture: DrawableTexture2D
 var width: int
@@ -48,9 +50,18 @@ static func is_supported() -> bool:
 ## [param center] - Center of the stamp in layer pixels. [br]
 ## [param size] - Size the stamp is drawn at, in pixels.
 func stamp(stamp_tex: Texture2D, center: Vector2, size: Vector2, color: Color) -> void:
-	var rect_size := Vector2i(maxi(1, roundi(size.x)), maxi(1, roundi(size.y)))
-	var origin := Vector2i((center - Vector2(rect_size) / 2.0).round())
-	texture.blit_rect(Rect2i(origin, rect_size), stamp_tex, color)
+	texture.blit_rect(_stamp_rect(center, size), stamp_tex, color)
+
+
+## Removes alpha under [param stamp_tex], scaled by [param strength] (0 to 1). [br]
+## Erasing is multiplicative: [code]alpha *= 1 - stamp_alpha * strength[/code].
+func erase(stamp_tex: Texture2D, center: Vector2, size: Vector2, strength: float = 1.0) -> void:
+	if _erase == null:
+		_erase = ShaderMaterial.new()
+		_erase.shader = ERASE_SHADER
+	texture.blit_rect(
+		_stamp_rect(center, size), stamp_tex, Color(1, 1, 1, clampf(strength, 0.0, 1.0)), 0, _erase
+	)
 
 
 ## Reads the surface back as a straight-alpha [constant Image.FORMAT_RGBA8] image.
@@ -69,6 +80,12 @@ static func display_material() -> CanvasItemMaterial:
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
 	return mat
+
+
+static func _stamp_rect(center: Vector2, size: Vector2) -> Rect2i:
+	var rect_size := Vector2i(maxi(1, roundi(size.x)), maxi(1, roundi(size.y)))
+	var origin := Vector2i((center - Vector2(rect_size) / 2.0).round())
+	return Rect2i(origin, rect_size)
 
 
 static func _material(premultiply: bool) -> ShaderMaterial:
