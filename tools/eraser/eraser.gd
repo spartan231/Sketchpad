@@ -10,6 +10,7 @@ var filter: Texture2D
 
 var original_image: Image
 var new_image: Image
+var _surface: LayerSurface
 
 var _last_pos: Vector2
 var _has_last = false
@@ -20,10 +21,13 @@ func _ready() -> void:
 
 
 func on_pointer_down(_position: Vector2, _canvas: Canvas) -> void:
-	var project: Project = _canvas._project
-	var current_page: Page = project.frames[project.current_frame]
-	original_image = current_page.layers[project.current_layer].duplicate()
-	new_image = original_image.duplicate()
+	_surface = _canvas.begin_surface()
+	if not _surface:
+		# Fallback: erase on the CPU, one layer copy per stamp.
+		var project: Project = _canvas._project
+		var current_page: Page = project.frames[project.current_frame]
+		original_image = current_page.layers[project.current_layer].duplicate()
+		new_image = original_image.duplicate()
 	_has_last = true
 	_last_pos = _position
 	_place_stamp(_last_pos, _canvas)
@@ -48,6 +52,10 @@ func on_pointer_move(_position: Vector2, _canvas: Canvas) -> void:
 
 func on_pointer_up(_position: Vector2, _canvas: Canvas) -> void:
 	_has_last = false
+	if _surface:
+		_surface = null
+		_canvas.end_surface()
+		return
 	var project: Project = _canvas._project
 	if original_image:
 		project.edit_current_layer(project.current_layer, new_image, original_image)
@@ -88,6 +96,10 @@ func generate_filter() -> Texture2D:
 
 
 func _place_stamp(_position: Vector2, _canvas: Canvas) -> void:
+	if _surface:
+		_surface.erase(filter, _position, Vector2.ONE * width)
+		return
+
 	var tex_w = float(filter.get_width())
 	var scale_factor = width / tex_w
 	var img = filter.get_image()

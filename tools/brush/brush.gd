@@ -9,6 +9,7 @@ var hardness: float = 1.0
 var scaling_filter: Image.Interpolation
 var stamp_tex: Texture2D
 var _stroke_node: Node2D
+var _surface: LayerSurface
 var _last_pos: Vector2
 var _has_last = false
 
@@ -17,15 +18,18 @@ func _ready() -> void:
 	stamp_tex = generate_stamp()
 
 func on_pointer_down(_position: Vector2, _canvas: Canvas) -> void:
-	_stroke_node = Node2D.new()
-	_canvas.dynamic_node.add_child(_stroke_node)
+	_surface = _canvas.begin_surface()
+	if not _surface:
+		# Fallback: stamp sprites into the dynamic node and bake on release.
+		_stroke_node = Node2D.new()
+		_canvas.dynamic_node.add_child(_stroke_node)
 	_has_last = true
 	_last_pos = _position
 	_place_stamp(_last_pos)
 
 
 func on_pointer_move(_position: Vector2, _canvas: Canvas) -> void:
-	if not _stroke_node or not _canvas._project or not _has_last:
+	if not (_surface or _stroke_node) or not _canvas._project or not _has_last:
 		return
 
 	var delta = _last_pos - _position
@@ -43,7 +47,11 @@ func on_pointer_move(_position: Vector2, _canvas: Canvas) -> void:
 
 func on_pointer_up(_position: Vector2, _canvas: Canvas) -> void:
 	_has_last = false
-	_canvas.bake_page()
+	if _surface:
+		_surface = null
+		_canvas.end_surface()
+	else:
+		_canvas.bake_page()
 
 
 func generate_stamp() -> Texture2D:
@@ -80,6 +88,10 @@ func generate_stamp() -> Texture2D:
 
 
 func _place_stamp(_position: Vector2) -> void:
+	if _surface:
+		_surface.stamp(stamp_tex, _position, Vector2.ONE * width, EditorState.color)
+		return
+
 	var s = Sprite2D.new()
 	s.texture = stamp_tex
 	s.position = _position
